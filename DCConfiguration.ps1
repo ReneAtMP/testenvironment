@@ -1,32 +1,55 @@
 Configuration InstallADDSRole {
-    param (
-        [string]$DomainName,
-        [string]$SafeModePassword
+    param(
+        [Parameter(Mandatory)]
+        [String]$DomainName,
+
+        [Parameter(Mandatory)]
+        [PSCredential]$SafeModePassword,
+
+        [Parameter(Mandatory)]
+        [PSCredential]$AdminPassword
     )
 
     Import-DscResource -ModuleName PSDesiredStateConfiguration
+    Import-DscResource -ModuleName ActiveDirectoryDsc
 
-    Node localhost {
-        WindowsFeature ADDS {
-            Name   = "AD-Domain-Services"
-            Ensure = "Present"
+    Node 'localhost' {
+        WindowsFeature 'ADDS' {
+            Name   = 'AD-Domain-Services'
+            Ensure = 'Present'
+        }
+
+        WindowsFeature 'RSAT' {
+            Name   = 'RSAT-AD-Tools'
+            Ensure = 'Present'
         }
     }
 }
 
 Configuration PromoteForest {
-    param (
-        [string]$DomainName,
-        [string]$SafeModePassword
+    param(
+        [Parameter(Mandatory)]
+        [String]$DomainName,
+
+        [Parameter(Mandatory)]
+        [PSCredential]$SafeModePassword,
+
+        [Parameter(Mandatory)]
+        [PSCredential]$AdminPassword
     )
 
-    Import-Module ADDSDeployment
+    Import-DscResource -ModuleName PSDesiredStateConfiguration
+    Import-DscResource -ModuleName ActiveDirectoryDsc
 
-    if (-not (Get-ADForest -ErrorAction SilentlyContinue)) {
-        Install-ADDSForest `
-            -DomainName $DomainName `
-            -SafeModeAdministratorPassword (ConvertTo-SecureString $SafeModePassword -AsPlainText -Force) `
-            -InstallDns `
-            -Force
+    Node 'localhost' {
+        ADDomain 'Forest' {
+            DomainName                    = $DomainName
+            SafemodeAdministratorPassword = $SafeModePassword
+            Credential                    = $AdminPassword
+            ForestMode                    = 'WinThreshold'
+            DomainMode                    = 'WinThreshold'
+            DomainNetbiosName            = $DomainName.Split('.')[0].ToUpper()
+            Ensure                        = 'Present'
+        }
     }
 }
