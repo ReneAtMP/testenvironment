@@ -1,22 +1,32 @@
-Configuration DCConfiguration {
+Configuration InstallADDSRole {
     param (
         [string]$DomainName,
-        [PSCredential]$SafeModePassword
+        [string]$SafeModePassword
     )
+
+    Import-DscResource -ModuleName PSDesiredStateConfiguration
 
     Node localhost {
         WindowsFeature ADDS {
             Name   = "AD-Domain-Services"
             Ensure = "Present"
         }
-
-        xADDomain Domain {
-            DomainName        = $DomainName
-            DomainAdministratorCredential = $SafeModePassword
-            SafeModeAdministratorPassword  = $SafeModePassword
-            DependsOn         = "[WindowsFeature]ADDS"
-        }
     }
 }
 
-DCConfiguration -DomainName $DomainName -SafeModePassword $SafeModePassword -OutputPath "C:\DSC"
+Configuration PromoteForest {
+    param (
+        [string]$DomainName,
+        [string]$SafeModePassword
+    )
+
+    Import-Module ADDSDeployment
+
+    if (-not (Get-ADForest -ErrorAction SilentlyContinue)) {
+        Install-ADDSForest `
+            -DomainName $DomainName `
+            -SafeModeAdministratorPassword (ConvertTo-SecureString $SafeModePassword -AsPlainText -Force) `
+            -InstallDns `
+            -Force
+    }
+}
